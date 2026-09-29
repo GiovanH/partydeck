@@ -323,6 +323,7 @@ pub fn launch_cmds(
             if let Some(appid) = h.steam_appid {
                 cmd.env("SteamAppId", &appid.to_string());
                 cmd.env("SteamGameId", &appid.to_string());
+                cmd.env("SteamOverlayGameId", &appid.to_string());
             }
 
             let sdk32_link = std::fs::read_link(PATH_STEAM.join("sdk32")).map_err(|e| format!("Failed to read sdk32 link: {}", e))?;
