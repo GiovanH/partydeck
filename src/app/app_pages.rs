@@ -44,6 +44,7 @@ impl PartyApp {
             ui.hyperlink_to("@cseelhoff", "https://github.com/cseelhoff");
             ui.hyperlink_to("@davidawesome-02", "https://github.com/davidawesome-02");
             ui.hyperlink_to("@felipecrs", "https://github.com/felipecrs");
+            ui.hyperlink_to("@flipfloppy1", "https://github.com/flipfloppy1");
             ui.hyperlink_to("@framilano", "https://github.com/framilano");
             ui.hyperlink_to("@FrancisBernard34", "https://github.com/FrancisBernard34");
             ui.hyperlink_to("@jackhric", "https://github.com/jackhric");
