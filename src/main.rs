@@ -15,12 +15,30 @@ use crate::paths::PATH_PARTY;
 use crate::profiles::remove_guest_profiles;
 use crate::util::*;
 
+use clap::Parser;
+
+#[derive(Parser)]
+struct Cli {
+    /// Execute the specified executable in splitscreen. If this isn't specified, PartyDeck will launch in the regular GUI mode.
+    #[arg(long, value_name = "executable")]
+    exec: Option<String>,
+
+    /// Specify arguments for the executable to be launched with. Must be quoted if containing spaces.
+    #[arg(long, value_name = "args", default_value = "", allow_hyphen_values = true)]
+    args: String,
+
+    /// Start the GUI in fullscreen mode
+    #[arg(long)]
+    fullscreen: bool,
+
+    /// Launch PartyDeck inside of a KWin session
+    #[arg(long)]
+    kwin: bool,
+}
+
 fn main() -> eframe::Result {
-    if std::env::args().any(|arg| arg == "--help") {
-        println!("{}", USAGE_TEXT);
-        std::process::exit(0);
-    }
-    
+    let cli = Cli::parse();
+
     let monitors = get_monitors_errorless();
 
     println!("[partydeck] Monitors detected:");
@@ -33,9 +51,7 @@ fn main() -> eframe::Result {
         );
     }
 
-    let args: Vec<String> = std::env::args().collect();
-
-    if std::env::args().any(|arg| arg == "--kwin") {
+    if cli.kwin {
         let args: Vec<String> = std::env::args().filter(|arg| arg != "--kwin").collect();
 
         let (w, h) = (monitors[0].width(), monitors[0].height());
@@ -67,32 +83,12 @@ fn main() -> eframe::Result {
         }
     }
 
-    let mut exec = String::new();
-    let mut execargs = String::new();
-    if let Some(exec_index) = args.iter().position(|arg| arg == "--exec") {
-        if let Some(next_arg) = args.get(exec_index + 1) {
-            exec = next_arg.clone();
-        } else {
-            eprintln!("{}", USAGE_TEXT);
-            std::process::exit(1);
-        }
-    }
-    if let Some(execargs_index) = args.iter().position(|arg| arg == "--args") {
-        if let Some(next_arg) = args.get(execargs_index + 1) {
-            execargs = next_arg.clone();
-        } else {
-            eprintln!("{}", USAGE_TEXT);
-            std::process::exit(1);
-        }
-    }
+    let handler_lite = cli
+        .exec
+        .as_deref()
+        .map(|exec| Handler::from_cli(exec, &cli.args));
 
-    let handler_lite = if !exec.is_empty() {
-        Some(Handler::from_cli(&exec, &execargs))
-    } else {
-        None
-    };
-
-    let fullscreen = std::env::args().any(|arg| arg == "--fullscreen");
+    let fullscreen = cli.fullscreen;
 
     std::fs::create_dir_all(PATH_PARTY.join("handlers"))
         .expect("Failed to create handlers directory");
@@ -143,13 +139,3 @@ fn main() -> eframe::Result {
         }),
     )
 }
-
-static USAGE_TEXT: &str = r#"
-Usage: partydeck [OPTIONS]
-
-Options:
-    --exec <executable>   Execute the specified executable in splitscreen. If this isn't specified, PartyDeck will launch in the regular GUI mode.
-    --args [args]         Specify arguments for the executable to be launched with. Must be quoted if containing spaces.
-    --fullscreen          Start the GUI in fullscreen mode
-    --kwin                Launch PartyDeck inside of a KWin session
-"#;
