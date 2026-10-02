@@ -48,8 +48,8 @@ pub struct PartyApp {
     pub handlers: Vec<Handler>,
     pub selected_handler: usize,
     pub handler_edit: Option<Handler>,
-    /// Automatic handler built from --exec and --args
-    pub handler_lite: Option<Handler>, 
+    /// Single handler which gets exclusive focus, replacing menus
+    pub handler_exclusive: Option<Handler>, 
 
     pub loading_msg: Option<String>, // Base message + elapsed time appended if needed
     pub loading_base_msg: Option<String>, // The message a task started with
@@ -65,14 +65,14 @@ macro_rules! cur_handler {
 }
 
 impl PartyApp {
-    pub fn new(monitors: Vec<Monitor>, handler_lite: Option<Handler>) -> Self {
+    pub fn new(monitors: Vec<Monitor>, handler_exclusive: Option<Handler>) -> Self {
         let options = load_cfg();
         let input_devices = scan_input_devices(&options.pad_filter_type);
-        let handlers = match handler_lite {
+        let handlers = match handler_exclusive {
             Some(_) => Vec::new(),
             None => scan_handlers(),
         };
-        let cur_page = match handler_lite {
+        let cur_page = match handler_exclusive {
             Some(_) => MenuPage::Instances,
             None => MenuPage::Home,
         };
@@ -94,7 +94,7 @@ impl PartyApp {
             handlers,
             selected_handler: 0,
             handler_edit: None,
-            handler_lite,
+            handler_exclusive,
             profiles: scan_profiles(),
             loading_msg: None,
             loading_base_msg: None,
@@ -242,7 +242,7 @@ impl PartyApp {
 
     /// Is PartyDeck scoped to a single pre-defined handler?
     pub fn is_lite(&self) -> bool {
-        self.handler_lite.is_some()
+        self.handler_exclusive.is_some()
     }
 
     /// Steps an instance's profile through Guest and then each saved profile, wrapping around.
@@ -480,7 +480,7 @@ impl PartyApp {
     }
 
     pub fn prepare_game_launch(&mut self) {
-        let handler = if let Some(h) = self.handler_lite.clone() {
+        let handler = if let Some(h) = self.handler_exclusive.clone() {
             h
         } else {
             cur_handler!(self).to_owned()
