@@ -8,6 +8,9 @@ mod paths;
 mod profiles;
 mod util;
 
+use std::error::Error;
+use std::path::PathBuf;
+
 use crate::app::*;
 use crate::handler::Handler;
 use crate::monitor::{get_monitors_errorless, get_x11_dpi_scale};
@@ -19,13 +22,17 @@ use clap::Parser;
 
 #[derive(Parser)]
 struct Cli {
-    /// Execute the specified executable in splitscreen. If this isn't specified, PartyDeck will launch in the regular GUI mode.
+    /// Automatically build a simple handler for an executable. If this isn't specified, PartyDeck will launch in the regular GUI mode.
     #[arg(long, value_name = "executable")]
     exec: Option<String>,
 
     /// Specify arguments for the executable to be launched with. Must be quoted if containing spaces.
     #[arg(long, value_name = "args", default_value = "", allow_hyphen_values = true)]
     args: String,
+
+    /// Open to a specific handler. Takes either an installed handler's name or a handler.json path
+    #[arg(long, value_name = "handler", conflicts_with = "exec")]
+    handler: Option<String>,
 
     /// Start the GUI in fullscreen mode
     #[arg(long)]
@@ -34,6 +41,38 @@ struct Cli {
     /// Launch PartyDeck inside of a KWin session
     #[arg(long)]
     kwin: bool,
+}
+
+/// Resolve a handler from CLI input: either a handler.json path, a handler directory, 
+/// or an installed handler's directory name or display name.
+fn resolve_handler(spec: &str) -> Result<Handler, Box<dyn Error>> {
+    let path = PathBuf::from(spec);
+    // From json file
+    if path.is_file() {
+        return Handler::from_json(&path);
+    }
+    // From handler dir
+    if path.join("handler.json").is_file() {
+        return Handler::from_json(&path.join("handler.json"));
+    }
+    // From installed handler dir name
+    let mut handlers = handler::scan_handlers();
+    if let Some(h) = handlers.iter().find(|h| h.handler_dir_name() == spec) {
+        return Ok(h.clone());
+    }
+    // From installed handler label
+    handlers.retain(|h| h.name.eq_ignore_ascii_case(spec));
+    match handlers.len() {
+        0 => Err(format!("No handler file or installed handler named \"{spec}\"").into()),
+        1 => Ok(handlers.remove(0)),
+        _ => {
+            let dirs: Vec<&str> = handlers.iter().map(|h| h.handler_dir_name()).collect();
+            Err(format!(
+                "Multiple handlers named '{spec}'; pass one of these instead: {}",
+                dirs.join(", ")
+            ).into())
+        }
+    }
 }
 
 fn main() -> eframe::Result {
@@ -83,10 +122,17 @@ fn main() -> eframe::Result {
         }
     }
 
-    let handler_lite = cli
-        .exec
-        .as_deref()
-        .map(|exec| Handler::from_cli(exec, &cli.args));
+    let handler_exclusive = if let Some(exec) = &cli.exec {
+        Some(Handler::from_cli(exec, &cli.args))
+    } else if let Some(spec) = &cli.handler {
+        let handler = resolve_handler(spec).unwrap_or_else(|err| {
+            eprintln!("[partydeck] {err}");
+            std::process::exit(1);
+        });
+        Some(handler)
+    } else {
+        None
+    };
 
     let fullscreen = cli.fullscreen;
 
@@ -134,7 +180,7 @@ fn main() -> eframe::Result {
             cc.egui_ctx.set_zoom_factor(scale);
             Ok(Box::<PartyApp>::new(PartyApp::new(
                 monitors.clone(),
-                handler_lite,
+                handler_exclusive,
             )))
         }),
     )
