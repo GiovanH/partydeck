@@ -420,18 +420,35 @@ pub fn launch_cmds(
 
         cmd.arg(&path_exec);
 
+        let vars = [
+            ("$PROFILE", instance.profname.clone()),
+            ("$WIDTH", instance.width.to_string()),
+            ("$HEIGHT", instance.height.to_string()),
+            ("$RESOLUTION", format!("{}x{}", instance.width, instance.height)),
+            ("$INSTANCECOUNT", instances.len().to_string()),
+            ("$INSTANCENUM", i.to_string()),
+            ("$GAMEDIR", gamedir.os_fmt(win)),
+            ("$HANDLERDIR", h.path_handler.os_fmt(win)),
+        ];
+
+        // Substitute variables anywhere in an arg.
+        // Non-variable text is sanitized, including $s that aren't part of known variable names
         for arg in h.args.split_whitespace() {
-            let processed_arg = match arg {
-                "$PROFILE" => &instance.profname,
-                "$WIDTH" => &instance.width.to_string(),
-                "$HEIGHT" => &instance.height.to_string(),
-                "$RESOLUTION" => &format!("{}x{}", instance.width, instance.height),
-                "$INSTANCECOUNT" => &instances.len().to_string(),
-                "$INSTANCENUM" => &i.to_string(),
-                "$GAMEDIR" => &gamedir.os_fmt(win),
-                "$HANDLERDIR" => &h.path_handler.os_fmt(win),
-                _ => &String::from(arg).sanitize_path(),
-            };
+            let mut processed_arg = String::new();
+            let mut rest = arg;
+            // Scan for $ marker, then try to replace with a known variable
+            while let Some(pos) = rest.find('$') {
+                processed_arg.push_str(&rest[..pos].to_string().sanitize_path());
+                rest = &rest[pos..];
+                match vars.iter().find(|(name, _)| rest.starts_with(name)) {
+                    Some((name, val)) => {
+                        processed_arg.push_str(val);
+                        rest = &rest[name.len()..];
+                    }
+                    None => rest = &rest[1..],
+                }
+            }
+            processed_arg.push_str(&rest.to_string().sanitize_path());
             cmd.arg(processed_arg);
         }
     }
