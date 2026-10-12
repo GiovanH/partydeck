@@ -296,7 +296,7 @@ impl PartyApp {
         });
 
         ui.horizontal(|ui| {
-            ui.label("Unique per-profile environments:");
+            ui.label("Split style:");
             ui.radio_value(&mut h.overrides.vertical_two_player, None, "(Default)");
             ui.radio_value(&mut h.overrides.vertical_two_player, Some(true), "Vertical");
             ui.radio_value(&mut h.overrides.vertical_two_player, Some(false), "Horizontal");
